@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Envio de Localização</title>
-    <!-- Tailwind CSS para um design moderno e responsivo -->
+    <title>Envio de Localização em Tempo Real</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
 
     <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl shadow-xl p-8 space-y-6">
         <div class="text-center space-y-2">
-            <h1 class="text-2xl font-bold tracking-tight">Captura de Localização</h1>
-            <p class="text-sm text-slate-400">O sistema detectará suas coordenadas ou permitirá o preenchimento manual.</p>
+            <h1 class="text-2xl font-bold tracking-tight">Rastreamento em Tempo Real</h1>
+            <p class="text-sm text-slate-400">Capturando suas coordenadas atuais continuamente...</p>
         </div>
 
         <!-- Formulário integrado -->
@@ -23,7 +23,7 @@
                 <label for="entry.1077303949" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Local / Endereço</label>
                 <input type="text" id="entry.1077303949" name="entry.1077303949" required 
                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
-                    placeholder="Insira sua localização...">
+                    placeholder="Aguardando sinal do GPS...">
             </div>
 
             <!-- Campo Latitude -->
@@ -44,9 +44,9 @@
 
             <!-- Botões de Ação -->
             <div class="flex gap-2 pt-1">
-                <button type="button" id="retryBtn" onclick="getLocation()"
-                    class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-2.5 px-3 rounded-lg transition-colors">
-                    🔄 Re-tentar GPS
+                <button type="button" id="toggleWatchBtn" onclick="toggleTracking()"
+                    class="flex-1 bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-medium py-2.5 px-3 rounded-lg transition-colors">
+                    ⏸️ Pausar GPS
                 </button>
                 <button type="submit" id="submitBtn"
                     class="flex-[2] bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-lg shadow-indigo-600/25">
@@ -57,7 +57,7 @@
 
         <!-- Status dinâmico -->
         <div id="statusMessage" class="text-xs text-center text-slate-400 min-h-[1.5rem]">
-            Aguardando geolocalização...
+            Iniciando monitoramento em tempo real...
         </div>
     </div>
 
@@ -66,15 +66,24 @@
 
     <script>
         let isSubmitted = false;
+        let watchId = null;
+        let isTracking = true;
 
         const latInput = document.getElementById('entry.1073868881');
         const lonInput = document.getElementById('entry.774280574');
         const locInput = document.getElementById('entry.1077303949');
         const submitBtn = document.getElementById('submitBtn');
         const statusMessage = document.getElementById('statusMessage');
+        const toggleWatchBtn = document.getElementById('toggleWatchBtn');
         const form = document.getElementById('locationForm');
 
-        async function fetchAddress(lat, lon) {
+        let lastFetchTime = 0;
+        async function fetchAddressThrottled(lat, lon) {
+            const now = Date.now();
+            // Limita a busca reversa de endereço para a cada 10 segundos para não sobrecarregar a API pública
+            if (now - lastFetchTime < 10000) return;
+            lastFetchTime = now;
+
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
                 const data = await response.json();
@@ -86,42 +95,58 @@
             }
         }
 
-        function getLocation() {
-            statusMessage.textContent = "Solicitando permissão de geolocalização...";
-            statusMessage.className = "text-xs text-center text-slate-400 min-h-[1.5rem]";
-
+        function startTracking() {
             if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(
+                statusMessage.textContent = "Monitorando localização em tempo real...";
+                statusMessage.className = "text-xs text-center text-amber-400 min-h-[1.5rem]";
+
+                watchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
 
+                        // Atualiza os inputs em tempo real conforme o GPS muda
                         latInput.value = lat;
                         lonInput.value = lon;
 
-                        fetchAddress(lat, lon);
-                        statusMessage.textContent = "Localização capturada com sucesso via GPS!";
-                        statusMessage.className = "text-xs text-center text-emerald-400 min-h-[1.5rem]";
+                        fetchAddressThrottled(lat, lon);
                     },
                     (error) => {
                         console.error(error);
                         statusMessage.textContent = "GPS indisponível. Preencha os campos manualmente abaixo.";
-                        statusMessage.className = "text-xs text-center text-amber-400 min-h-[1.5rem]";
+                        statusMessage.className = "text-xs text-center text-rose-400 min-h-[1.5rem]";
                     },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                 );
             } else {
-                statusMessage.textContent = "Geolocalização não suportada. Preencha manualmente.";
+                statusMessage.textContent = "Geolocalização não suportada pelo navegador.";
                 statusMessage.className = "text-xs text-center text-rose-400 min-h-[1.5rem]";
             }
         }
 
-        // Tenta obter ao carregar
-        getLocation();
+        function toggleTracking() {
+            if (isTracking) {
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                isTracking = false;
+                toggleWatchBtn.textContent = "▶️ Retomar GPS";
+                toggleWatchBtn.className = "flex-1 bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-medium py-2.5 px-3 rounded-lg transition-colors";
+                statusMessage.textContent = "GPS pausado. Valores atuais fixados (você pode editá-los).";
+                statusMessage.className = "text-xs text-center text-slate-400 min-h-[1.5rem]";
+            } else {
+                startTracking();
+                isTracking = true;
+                toggleWatchBtn.textContent = "⏸️ Pausar GPS";
+                toggleWatchBtn.className = "flex-1 bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-medium py-2.5 px-3 rounded-lg transition-colors";
+            }
+        }
 
-        // Intercepta o envio para marcar como enviado via iframe
+        // Inicia o rastreamento ao carregar
+        startTracking();
+
+        // Intercepta o envio
         form.addEventListener('submit', () => {
             isSubmitted = true;
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId); // Para o GPS ao enviar
             submitBtn.disabled = true;
             submitBtn.textContent = "Enviando...";
         });
