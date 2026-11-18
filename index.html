@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Envio de Localização em Tempo Real</title>
+    <title>Envio de Localização</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -11,8 +11,8 @@
 
     <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl shadow-xl p-8 space-y-6">
         <div class="text-center space-y-2">
-            <h1 class="text-2xl font-bold tracking-tight">Rastreamento em Tempo Real</h1>
-            <p class="text-sm text-slate-400">Capturando suas coordenadas atuais continuamente...</p>
+            <h1 class="text-2xl font-bold tracking-tight">Captura de Localização</h1>
+            <p class="text-sm text-slate-400">O sistema detectará suas coordenadas geográficas atuais em tempo real.</p>
         </div>
 
         <!-- Formulário integrado -->
@@ -80,7 +80,6 @@
         let lastFetchTime = 0;
         async function fetchAddressThrottled(lat, lon) {
             const now = Date.now();
-            // Limita a busca reversa de endereço para a cada 10 segundos para não sobrecarregar a API pública
             if (now - lastFetchTime < 10000) return;
             lastFetchTime = now;
 
@@ -105,7 +104,6 @@
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
 
-                        // Atualiza os inputs em tempo real conforme o GPS muda
                         latInput.value = lat;
                         lonInput.value = lon;
 
@@ -140,13 +138,11 @@
             }
         }
 
-        // Inicia o rastreamento ao carregar
         startTracking();
 
-        // Intercepta o envio
         form.addEventListener('submit', () => {
             isSubmitted = true;
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId); // Para o GPS ao enviar
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
             submitBtn.disabled = true;
             submitBtn.textContent = "Enviando...";
         });
