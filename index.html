@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envio de Localização</title>
+    <!-- Tailwind CSS para um design moderno e responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl shadow-xl p-8 space-y-6">
+        <div class="text-center space-y-2">
+            <h1 class="text-2xl font-bold tracking-tight">Captura de Localização</h1>
+            <p class="text-sm text-slate-400">O sistema detectará suas coordenadas geográficas atuais para envio automático.</p>
+        </div>
+
+        <!-- Formulário integrado -->
+        <form id="locationForm" action="https://docs.google.com/forms/d/e/1FAIpQLSfIjfO93eZUtNtCDzL2PrMqxWXVhGUzkH3jqQxUI42Cd7K8rA/formResponse" method="POST" target="hidden_iframe" class="space-y-4">
+            
+            <!-- Campo Local -->
+            <div>
+                <label for="entry.1077303949" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Local / Endereço</label>
+                <input type="text" id="entry.1077303949" name="entry.1077303949" required 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                    placeholder="Detectando local...">
+            </div>
+
+            <!-- Campo Latitude -->
+            <div>
+                <label for="entry.1073868881" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Latitude</label>
+                <input type="text" id="entry.1073868881" name="entry.1073868881" required readonly
+                    class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-400 cursor-not-allowed"
+                    placeholder="Aguardando permissão...">
+            </div>
+
+            <!-- Campo Longitude -->
+            <div>
+                <label for="entry.774280574" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Longitude</label>
+                <input type="text" id="entry.774280574" name="entry.774280574" required readonly
+                    class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-400 cursor-not-allowed"
+                    placeholder="Aguardando permissão...">
+            </div>
+
+            <!-- Botão de Envio -->
+            <button type="submit" id="submitBtn" disabled
+                class="w-full mt-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-lg shadow-indigo-600/20">
+                Enviar Localização
+            </button>
+        </form>
+
+        <!-- Status dinâmico -->
+        <div id="statusMessage" class="text-xs text-center text-slate-400 min-h-[1.5rem]">
+            Solicitando permissão de geolocalização...
+        </div>
+    </div>
+
+    <!-- Iframe oculto para submissão sem redirecionar a página -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="if(isSubmitted){ showSuccess(); }"></iframe>
+
+    <script>
+        let isSubmitted = false;
+
+        const latInput = document.getElementById('entry.1073868881');
+        const lonInput = document.getElementById('entry.774280574');
+        const locInput = document.getElementById('entry.1077303949');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const form = document.getElementById('locationForm');
+
+        // Função para buscar o nome do local via Nominatim (OpenStreetMap) usando as coordenadas
+        async function fetchAddress(lat, lon) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+                const data = await response.json();
+                if (data && data.display_name) {
+                    locInput.value = data.display_name;
+                    statusMessage.textContent = "Localização capturada com sucesso!";
+                    statusMessage.className = "text-xs text-center text-emerald-400 min-h-[1.5rem]";
+                } else {
+                    locInput.value = `Lat: ${lat}, Lon: ${lon}`;
+                    statusMessage.textContent = "Coordenadas obtidas (endereço não detalhado).";
+                }
+            } catch (error) {
+                console.error("Erro ao buscar endereço:", error);
+                locInput.value = `${lat}, ${lon}`;
+                statusMessage.textContent = "Coordenadas obtidas com sucesso.";
+                statusMessage.className = "text-xs text-center text-emerald-400 min-h-[1.5rem]";
+            }
+        }
+
+        // Obter Geolocalização ao carregar a página
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+
+                    latInput.value = lat;
+                    lonInput.value = lon;
+
+                    // Busca reversa amigável para o campo "local" e libera o botão
+                    fetchAddress(lat, lon);
+                    submitBtn.disabled = false;
+                },
+                (error) => {
+                    console.error(error);
+                    statusMessage.textContent = "Erro: Permissão de localização negada ou indisponível.";
+                    statusMessage.className = "text-xs text-center text-rose-400 min-h-[1.5rem]";
+                    locInput.placeholder = "Insira sua localização manualmente";
+                    locInput.removeAttribute("readonly");
+                    locInput.classList.remove("bg-slate-900/50", "text-slate-400");
+                    locInput.classList.add("bg-slate-900", "text-slate-100");
+                    submitBtn.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            statusMessage.textContent = "Geolocalização não é suportada pelo seu navegador.";
+            statusMessage.className = "text-xs text-center text-rose-400 min-h-[1.5rem]";
+            submitBtn.disabled = false;
+        }
+
+        // Intercepta o envio para marcar como enviado via iframe
+        form.addEventListener('submit', () => {
+            isSubmitted = true;
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Enviando...";
+        });
+
+        function showSuccess() {
+            if (isSubmitted) {
+                form.reset();
+                submitBtn.textContent = "Enviado com Sucesso!";
+                submitBtn.classList.remove("bg-indigo-600", "hover:bg-indigo-500");
+                submitBtn.classList.add("bg-emerald-600", "text-white");
+                statusMessage.textContent = "Dados registrados no Google Forms com sucesso!";
+                statusMessage.className = "text-xs text-center text-emerald-400 min-h-[1.5rem]";
+            }
+        }
+    </script>
+</body>
+</html>
